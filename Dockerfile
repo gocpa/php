@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.4
 
-FROM --platform=$BUILDPLATFORM php:8.1-fpm-alpine3.18
+FROM --platform=$BUILDPLATFORM php:8.2-fpm-alpine3.18
 
 RUN \
     # deps
