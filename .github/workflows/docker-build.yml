@@ -27,7 +27,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: vaninanton/php
+          images: vaninanton/gocpa-php
           tags: |
             type=schedule
             type=ref,event=branch
