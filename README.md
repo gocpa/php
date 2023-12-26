@@ -5,7 +5,9 @@ Includes:
 * gd
 * intl
 * pcntl
+* ldap
 * pdo_mysql
+* pdo_pgsql
 * zip
 * memcached
 * redis
