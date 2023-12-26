@@ -1,17 +1,17 @@
-# syntax=docker/dockerfile:1.4
+# syntax=docker/dockerfile:1
 
-FROM --platform=$BUILDPLATFORM php:8.2-fpm-alpine3.18
+FROM php:8.3-fpm-alpine3.19
 
 RUN \
     # deps
     apk add -U --no-cache --virtual temp \
     # dev deps
-    autoconf g++ file re2c make zlib-dev oniguruma-dev icu-data-full icu-dev \
-    openldap-dev libzip-dev libmemcached-dev postgresql-dev \
+    autoconf file g++ icu-data-full icu-dev libmemcached-dev \
+    libzip-dev make oniguruma-dev openldap-dev postgresql-dev re2c zlib-dev \
     # prod deps
     && apk add --no-cache \
-    zlib icu libpq libzip git linux-headers openldap openldap-back-mdb libmemcached \
-    freetype-dev libpng-dev jpeg-dev libjpeg-turbo-dev shadow \
+    freetype-dev git icu jpeg-dev libjpeg-turbo-dev libmemcached libpng-dev \
+    libpq libzip linux-headers openldap openldap-back-mdb shadow zlib \
     # php extensions
     && docker-php-source extract \
     && pecl channel-update pecl.php.net \
