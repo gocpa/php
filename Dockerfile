@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-FROM php:8.3-fpm-alpine3.19
+FROM php:8.3.6-fpm-alpine3.19
 
 RUN \
     # deps
