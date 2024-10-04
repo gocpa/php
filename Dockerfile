@@ -6,19 +6,19 @@ RUN \
     # deps
     apk add -U --no-cache --virtual temp \
     # dev deps
-    autoconf file g++ icu-data-full icu-dev libmemcached-dev \
-    libzip-dev make oniguruma-dev openldap-dev postgresql-dev re2c zlib-dev \
+    autoconf file g++ icu-data-full icu-dev libzip-dev \
+    make oniguruma-dev postgresql-dev re2c zlib-dev \
     # prod deps
     && apk add --no-cache \
-    freetype-dev git icu jpeg-dev libjpeg-turbo-dev libmemcached libpng-dev \
-    libpq libzip linux-headers openldap openldap-back-mdb shadow zlib \
+    freetype-dev git icu jpeg-dev libjpeg-turbo-dev \
+    libpng-dev libpq libzip linux-headers shadow zlib \
     # php extensions
     && docker-php-source extract \
     && pecl channel-update pecl.php.net \
     && { php -m | grep gd || docker-php-ext-configure gd --with-freetype --with-jpeg --enable-gd; } \
-    && docker-php-ext-install bcmath gd intl pcntl ldap opcache pdo_mysql pdo_pgsql zip \
+    && docker-php-ext-install bcmath gd intl pcntl opcache pdo_mysql pdo_pgsql zip \
     && { pecl clear-cache || true; } \
-    && pecl install memcached redis xdebug \
+    && pecl install redis xdebug \
     && docker-php-source delete \
     #
     # composer
