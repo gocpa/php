@@ -1,6 +1,12 @@
 # syntax=docker/dockerfile:1
+# Базовый образ php8.3-fpm для партнерских программ GoCPA
 
-FROM php:8.3.6-fpm-alpine3.19
+FROM --platform=$BUILDPLATFORM php:8.3.6-fpm-alpine3.19
+
+ARG TARGETPLATFORM
+ARG BUILDPLATFORM
+
+RUN echo "I am running on $BUILDPLATFORM, building for $TARGETPLATFORM" > /log
 
 RUN \
     # deps
@@ -18,7 +24,7 @@ RUN \
     && { php -m | grep gd || docker-php-ext-configure gd --with-freetype --with-jpeg --enable-gd; } \
     && docker-php-ext-install bcmath gd intl pcntl opcache pdo_mysql pdo_pgsql zip \
     && { pecl clear-cache || true; } \
-    && pecl install redis xdebug \
+    && pecl install redis \
     && docker-php-source delete \
     #
     # composer
@@ -29,10 +35,6 @@ RUN \
     && rm -rf /var/cache/apk/* /tmp/* /var/tmp/* /usr/share/doc/* /usr/share/man/*
 
 EXPOSE 9000
-
-COPY src/usr/local/share/ca-certificates/rcert.pem /usr/local/share/ca-certificates/rcert.pem
-COPY src/usr/local/share/ca-certificates/YandexInternalRootCA.crt /usr/local/share/ca-certificates/YandexInternalRootCA.crt
-RUN update-ca-certificates
 
 RUN echo "php_admin_flag[log_errors] = on" >> /usr/local/etc/php-fpm.d/www.conf
 

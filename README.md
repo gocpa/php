@@ -1,6 +1,6 @@
-# php-fpm image for laravel
+# Базовый образ php8.3 для продуктов GoCPA
 
-Includes:
+## Модули php
 * bcmath
 * gd
 * intl
@@ -9,5 +9,9 @@ Includes:
 * pdo_pgsql
 * zip
 * redis
-* xdebug
+
+## Дополнительный софт
 * composer
+
+## Сборка:
+Происходит автоматически, необходимо создать github release
