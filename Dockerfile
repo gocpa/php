@@ -1,12 +1,7 @@
 # syntax=docker/dockerfile:1
 # Базовый образ php8.3-fpm для партнерских программ GoCPA
 
-FROM --platform=$BUILDPLATFORM php:8.3.6-fpm-alpine3.19
-
-ARG TARGETPLATFORM
-ARG BUILDPLATFORM
-
-RUN echo "I am running on $BUILDPLATFORM, building for $TARGETPLATFORM" > /log
+FROM php:8.3.6-fpm-alpine3.19
 
 RUN \
     # deps
