@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 # Базовый образ php8.3-fpm для партнерских программ GoCPA
 
-FROM php:8.3.12-fpm-alpine3.19
+FROM php:8.4.1-fpm-alpine3.19
 
 RUN \
     # deps
