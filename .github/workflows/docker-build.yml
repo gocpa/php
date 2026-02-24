@@ -12,17 +12,16 @@ concurrency:
 jobs:
   build:
     name: Build PHP ${{ matrix.php_version }} (${{ matrix.platform }})
-    runs-on: ${{ matrix.runner }}
+    runs-on: ${{ matrix.platform == 'amd64' && 'ubuntu-latest' || 'ubuntu-24.04-arm' }}
     strategy:
       fail-fast: false
       matrix:
-        php_version: ["8.3", "8.4", "8.5"]
+        php_version: ["8.4", "8.5"]
+        platform: [amd64, arm64]
         include:
           - platform: amd64
-            runner: ubuntu-latest
             docker_platform: linux/amd64
           - platform: arm64
-            runner: ubuntu-24.04-arm
             docker_platform: linux/arm64/v8
     permissions:
       contents: read
