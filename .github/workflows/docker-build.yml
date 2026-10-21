@@ -46,6 +46,7 @@ jobs:
         with:
           context: .
           platforms: ${{ matrix.docker_platform }}
+          load: true
           push: ${{ github.event_name == 'release' }}
           tags: |
             gocpa/php:${{ matrix.php_version }}-fpm-${{ github.run_number }}-${{ matrix.platform }}
@@ -55,6 +56,9 @@ jobs:
           sbom: false
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Smoke test
+        run: ./tests/smoke.sh gocpa/php:${{ matrix.php_version }}-fpm-${{ github.run_number }}-${{ matrix.platform }}
 
   merge:
     name: Merge manifest PHP ${{ matrix.php_version }}

@@ -2,46 +2,45 @@
 # Базовый образ php-fpm для продуктов GoCPA
 
 ARG PHP_VERSION=8.4
+
+# отдельной стадией, чтобы версию обновлял Dependabot
+FROM composer:2.10.3 AS composer
+
 FROM php:${PHP_VERSION}-fpm-alpine
+
+ARG PHP_VERSION
+ARG PHPREDIS_VERSION=6.3.0
 
 LABEL org.opencontainers.image.source="https://github.com/gocpa/php" \
       org.opencontainers.image.description="PHP ${PHP_VERSION} FPM Alpine base image for GoCPA Laravel projects" \
       org.opencontainers.image.version="${PHP_VERSION}"
 
-RUN --mount=type=cache,target=/var/cache/apk \
-    --mount=type=bind,from=ghcr.io/php/pie:bin,source=/pie,target=/usr/bin/pie \
-    apk add -U --no-cache --virtual temp \
-    # dev deps
-    autoconf file g++ freetype-dev icu-dev \
-    jpeg-dev libjpeg-turbo-dev libpng-dev libzip-dev linux-headers make \
-    oniguruma-dev postgresql-dev re2c zlib-dev \
-    # prod deps
+COPY --from=composer /usr/bin/composer /usr/local/bin/composer
+
+RUN apk add --no-cache --virtual .build-deps \
+    $PHPIZE_DEPS linux-headers \
+    freetype-dev icu-dev libjpeg-turbo-dev libpng-dev libwebp-dev libzip-dev postgresql-dev \
     && apk add --no-cache \
-    freetype git icu icu-data-full libjpeg-turbo libpng libpq libzip shadow zlib \
-    # php extensions
+    freetype git icu-data-full icu-libs libjpeg-turbo libpng libpq libwebp libzip shadow tzdata \
+    # php extensions; phpredis кладём в дерево исходников, чтобы собрать его вместе со всеми
     && docker-php-source extract \
-    && { php -m | grep gd || docker-php-ext-configure gd --with-freetype --with-jpeg --enable-gd; } \
-    && docker-php-ext-install bcmath exif gd intl pcntl pdo_mysql pdo_pgsql zip \
-    && (if ! php -m | grep -q opcache; then docker-php-ext-install opcache || true; fi) \
-    && pie install phpredis/phpredis \
-    && pie install xdebug/xdebug \
-    && rm -f /usr/local/etc/php/conf.d/90-xdebug.ini \
-    && rm -f /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini \
-    && rm -f /usr/local/etc/php/conf.d/docker-php-ext-opcache.ini \
+    && mkdir /usr/src/php/ext/redis \
+    && curl -fsSL "https://github.com/phpredis/phpredis/archive/refs/tags/${PHPREDIS_VERSION}.tar.gz" \
+    | tar -xz --strip-components=1 -C /usr/src/php/ext/redis \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp \
+    && docker-php-ext-install -j"$(nproc)" bcmath exif gd intl pcntl pdo_mysql pdo_pgsql redis zip \
+    # 8.4: opcache собран отдельным модулем и не подключён; 8.5: встроен в PHP
+    && { php -m | grep -qi '^zend opcache$' || docker-php-ext-enable opcache; } \
     && docker-php-source delete \
     #
-    && echo "php_admin_flag[log_errors] = on" >> /usr/local/etc/php-fpm.d/www.conf \
-    && echo "php_admin_value[error_log] = /proc/self/fd/2" >> /usr/local/etc/php-fpm.d/www.conf \
-    # 00- — читается раньше ini проекта, иначе перебивает его opcache.enable=1
-    && printf '%s\n' 'opcache.enable=0' 'opcache.enable_cli=0' > /usr/local/etc/php/conf.d/00-opcache.ini \
-    # composer
-    && curl -sSL https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer \
-    && chmod +x /usr/local/bin/composer \
+    && cp "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini" \
+    # 00- — читается раньше ini проекта, иначе перебивает его настройки (например, opcache.enable=1)
+    && printf '%s\n' 'expose_php=Off' 'opcache.enable=0' 'opcache.enable_cli=0' > "$PHP_INI_DIR/conf.d/00-gocpa.ini" \
     #
     # cleanup
-    && apk del temp \
-    && rm -rf /var/cache/apk/* /tmp/* /var/tmp/* /usr/share/doc/* /usr/share/man/* /root/.composer/cache /root/.cache
+    && apk del .build-deps \
+    && rm -rf /tmp/* /var/tmp/* /usr/share/doc/* /usr/share/man/*
 
 EXPOSE 9000
 
-CMD ["php-fpm", "-y", "/usr/local/etc/php-fpm.conf", "-R"]
+CMD ["php-fpm"]
