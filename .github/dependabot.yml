@@ -1,20 +1,25 @@
-# To get started with Dependabot version updates, you'll need to specify which
-# package ecosystems to update and where the package manifests are located.
-# Please see the documentation for all configuration options:
-# https://docs.github.com/github/administering-a-repository/configuration-options-for-dependency-updates
+# https://docs.github.com/code-security/dependabot/working-with-dependabot/dependabot-options-reference
 
 version: 2
 updates:
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "daily"
+      interval: "weekly"
+    groups:
+      github-actions:
+        patterns: ["*"]
     commit-message:
       prefix: "[github-actions] "
 
+  # видит только стадии с конкретным тегом (FROM composer:…);
+  # php:${PHP_VERSION} — из ARG, его свежесть даёт еженедельная пересборка
   - package-ecosystem: "docker"
     directory: "/"
     schedule:
-      interval: "daily"
+      interval: "weekly"
+    groups:
+      docker:
+        patterns: ["*"]
     commit-message:
       prefix: "[docker] "
