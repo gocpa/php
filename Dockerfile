@@ -32,7 +32,8 @@ RUN --mount=type=cache,target=/var/cache/apk \
     #
     && echo "php_admin_flag[log_errors] = on" >> /usr/local/etc/php-fpm.d/www.conf \
     && echo "php_admin_value[error_log] = /proc/self/fd/2" >> /usr/local/etc/php-fpm.d/www.conf \
-    && printf '%s\n' 'opcache.enable=0' 'opcache.enable_cli=0' > /usr/local/etc/php/conf.d/opcache.ini \
+    # 00- — читается раньше ini проекта, иначе перебивает его opcache.enable=1
+    && printf '%s\n' 'opcache.enable=0' 'opcache.enable_cli=0' > /usr/local/etc/php/conf.d/00-opcache.ini \
     # composer
     && curl -sSL https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer \
     && chmod +x /usr/local/bin/composer \
