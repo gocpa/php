@@ -4,10 +4,21 @@ on:
   release:
     types: [published]
   pull_request:
+  schedule:
+    # еженедельная пересборка: свежие патчи Alpine и PHP без ручного релиза
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.repository }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  IMAGE: gocpa/php
+  PUBLISH: ${{ github.event_name != 'pull_request' }}
+
+permissions:
+  contents: read
 
 jobs:
   build:
@@ -23,67 +34,110 @@ jobs:
             docker_platform: linux/amd64
           - platform: arm64
             docker_platform: linux/arm64/v8
-    permissions:
-      contents: read
-      packages: write
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
-      - name: Log in to the Container registry
-        if: github.event_name == 'release'
-        uses: docker/login-action@v4
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v7
+      - name: Build image for tests
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           platforms: ${{ matrix.docker_platform }}
           load: true
-          push: ${{ github.event_name == 'release' }}
-          tags: |
-            gocpa/php:${{ matrix.php_version }}-fpm-${{ github.run_number }}-${{ matrix.platform }}
+          tags: ${{ env.IMAGE }}:test
           build-args: |
             PHP_VERSION=${{ matrix.php_version }}
-          provenance: false
-          sbom: false
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=${{ matrix.php_version }}-${{ matrix.platform }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.php_version }}-${{ matrix.platform }}
 
       - name: Smoke test
-        run: ./tests/smoke.sh gocpa/php:${{ matrix.php_version }}-fpm-${{ github.run_number }}-${{ matrix.platform }}
+        run: ./tests/smoke.sh ${{ env.IMAGE }}:test
+
+      - name: Scan for vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ env.IMAGE }}:test
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+
+      - name: Log in to Docker Hub
+        if: env.PUBLISH == 'true'
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # образ под одну платформу пушится без тега, по digest; теги ставит merge
+      - name: Push image by digest
+        id: push
+        if: env.PUBLISH == 'true'
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          platforms: ${{ matrix.docker_platform }}
+          build-args: |
+            PHP_VERSION=${{ matrix.php_version }}
+          outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
+          provenance: mode=max
+          sbom: true
+          cache-from: type=gha,scope=${{ matrix.php_version }}-${{ matrix.platform }}
+
+      - name: Export digest
+        if: env.PUBLISH == 'true'
+        run: |
+          mkdir -p "$RUNNER_TEMP/digests"
+          digest="${{ steps.push.outputs.digest }}"
+          touch "$RUNNER_TEMP/digests/${digest#sha256:}"
+
+      - name: Upload digest
+        if: env.PUBLISH == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: digests-${{ matrix.php_version }}-${{ matrix.platform }}
+          path: ${{ runner.temp }}/digests/*
+          if-no-files-found: error
+          retention-days: 1
 
   merge:
-    name: Merge manifest PHP ${{ matrix.php_version }}
-    if: github.event_name == 'release'
+    name: Publish PHP ${{ matrix.php_version }}
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     needs: [build]
     strategy:
       matrix:
         php_version: ["8.4", "8.5"]
-    permissions:
-      contents: read
-      packages: write
 
     steps:
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
+      - name: Download digests
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          path: ${{ runner.temp }}/digests
+          pattern: digests-${{ matrix.php_version }}-*
+          merge-multiple: true
 
-      - name: Log in to the Container registry
-        uses: docker/login-action@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Create and push multi-arch manifest
+        working-directory: ${{ runner.temp }}/digests
         run: |
-          docker buildx imagetools create -t gocpa/php:${{ matrix.php_version }}-fpm-${{ github.run_number }} \
-            gocpa/php:${{ matrix.php_version }}-fpm-${{ github.run_number }}-amd64 \
-            gocpa/php:${{ matrix.php_version }}-fpm-${{ github.run_number }}-arm64
+          sources=()
+          for digest in *; do sources+=("$IMAGE@sha256:$digest"); done
+          docker buildx imagetools create \
+            -t "$IMAGE:${{ matrix.php_version }}-fpm-${{ github.run_number }}" \
+            -t "$IMAGE:${{ matrix.php_version }}-fpm" \
+            "${sources[@]}"
+
+      - name: Inspect image
+        run: docker buildx imagetools inspect "$IMAGE:${{ matrix.php_version }}-fpm-${{ github.run_number }}"
