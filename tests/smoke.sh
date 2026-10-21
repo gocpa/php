@@ -28,6 +28,19 @@ test "$(docker run --rm -e TZ=Europe/Moscow "$IMAGE" date +%Z)" = MSK
 echo "--- php-fpm config"
 run php-fpm -t
 
+echo "--- php-fpm pool from env"
+docker run --rm -e PHP_FPM_MAX_CHILDREN=7 "$IMAGE" php-fpm -tt 2>&1 | grep -q 'pm.max_children = 7'
+
+echo "--- php-fpm healthcheck and error log"
+cid=$(docker run -d "$IMAGE")
+trap 'docker rm -f "$cid" >/dev/null' EXIT
+docker exec "$cid" sh -c 'echo "<?php trigger_error(\"smoke-test-warning\", E_USER_WARNING);" > /tmp/err.php'
+for _ in 1 2 3 4 5 6 7 8 9 10; do docker exec "$cid" php-fpm-healthcheck && break; sleep 1; done
+docker exec "$cid" php-fpm-healthcheck
+docker exec "$cid" sh -c 'SCRIPT_FILENAME=/tmp/err.php REQUEST_METHOD=GET cgi-fcgi -bind -connect 127.0.0.1:9000 >/dev/null'
+sleep 1
+docker logs "$cid" 2>&1 | grep -q smoke-test-warning
+
 echo "--- composer"
 run composer --version
 

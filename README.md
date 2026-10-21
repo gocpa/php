@@ -28,6 +28,7 @@ Xdebug в образе нет: если нужен для отладки, ста
 - **Composer** — версия зафиксирована в стадии `FROM composer:…`, обновляет Dependabot (`/usr/local/bin/composer`).
 - **git** — для зависимостей Composer из VCS.
 - **shadow** — `usermod`/`groupmod`/`useradd` для пользователя приложения.
+- **fcgi** — `cgi-fcgi` для `php-fpm-healthcheck`.
 - **tzdata** — переменная `TZ` (например, `TZ=Europe/Moscow`) работает для системного времени и логов. На Laravel не влияет: у него таймзона из `config/app.php`.
 - Build-зависимости (`-dev`-пакеты, компиляторы) удаляются после сборки расширений, остаются только рантайм-библиотеки.
 
@@ -40,6 +41,33 @@ Xdebug в образе нет: если нужен для отладки, ста
 ### PHP-FPM
 
 - Слушает порт `9000`, пул `www` работает от `www-data`.
+- Параметры пула задаются переменными окружения (файл `zz-gocpa.conf`), пересобирать образ не нужно:
+
+| Переменная                  | По умолчанию | Директива              |
+| --------------------------- | ------------ | ---------------------- |
+| `PHP_FPM_PM`                | `dynamic`    | `pm`                   |
+| `PHP_FPM_MAX_CHILDREN`      | `20`         | `pm.max_children`      |
+| `PHP_FPM_START_SERVERS`     | `4`          | `pm.start_servers`     |
+| `PHP_FPM_MIN_SPARE_SERVERS` | `2`          | `pm.min_spare_servers` |
+| `PHP_FPM_MAX_SPARE_SERVERS` | `6`          | `pm.max_spare_servers` |
+| `PHP_FPM_MAX_REQUESTS`      | `500`        | `pm.max_requests`      |
+
+  `zz-gocpa.conf` читается последним, поэтому эти директивы в своих conf-файлах пула проекту задавать бесполезно — только через переменные.
+- `ping.path = /ping` и `pm.status_path = /status` — для healthcheck и мониторинга. Через nginx они не видны, пока nginx сам не передаёт эти пути в FPM.
+
+### Healthcheck
+
+`php-fpm-healthcheck` стучится в `/ping` пула через `cgi-fcgi`. В сам образ `HEALTHCHECK` не прописан: из того же образа запускаются очереди и планировщик, где FPM нет. Добавьте его в compose сервису с FPM:
+
+```yaml
+healthcheck:
+  test: ["CMD", "php-fpm-healthcheck"]
+  interval: 10s
+  timeout: 3s
+  retries: 3
+```
+
+Если пул слушает не `127.0.0.1:9000`, задайте адрес в `PHP_FPM_HEALTHCHECK_ADDR` (можно путь к unix-сокету).
 
 ## Настройка в проекте
 

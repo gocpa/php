@@ -1,0 +1,7 @@
+#!/bin/sh
+# Проверка живости php-fpm через ping.path, для healthcheck в compose.
+# Адрес пула — PHP_FPM_HEALTHCHECK_ADDR (по умолчанию 127.0.0.1:9000, можно путь к сокету).
+set -eu
+
+SCRIPT_NAME=/ping SCRIPT_FILENAME=/ping REQUEST_METHOD=GET \
+    cgi-fcgi -bind -connect "${PHP_FPM_HEALTHCHECK_ADDR:-127.0.0.1:9000}" | grep -q pong

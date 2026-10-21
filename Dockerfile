@@ -21,7 +21,7 @@ RUN apk add --no-cache --virtual .build-deps \
     $PHPIZE_DEPS linux-headers \
     freetype-dev icu-dev libjpeg-turbo-dev libpng-dev libwebp-dev libzip-dev postgresql-dev \
     && apk add --no-cache \
-    freetype git icu-data-full icu-libs libjpeg-turbo libpng libpq libwebp libzip shadow tzdata \
+    fcgi freetype git icu-data-full icu-libs libjpeg-turbo libpng libpq libwebp libzip shadow tzdata \
     # php extensions; phpredis кладём в дерево исходников, чтобы собрать его вместе со всеми
     && docker-php-source extract \
     && mkdir /usr/src/php/ext/redis \
@@ -40,6 +40,15 @@ RUN apk add --no-cache --virtual .build-deps \
     # cleanup
     && apk del .build-deps \
     && rm -rf /tmp/* /var/tmp/* /usr/share/doc/* /usr/share/man/*
+
+COPY rootfs/ /
+
+ENV PHP_FPM_PM=dynamic \
+    PHP_FPM_MAX_CHILDREN=20 \
+    PHP_FPM_START_SERVERS=4 \
+    PHP_FPM_MIN_SPARE_SERVERS=2 \
+    PHP_FPM_MAX_SPARE_SERVERS=6 \
+    PHP_FPM_MAX_REQUESTS=500
 
 EXPOSE 9000
 
