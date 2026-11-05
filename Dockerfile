@@ -4,7 +4,7 @@
 ARG PHP_VERSION=8.4
 
 # отдельной стадией, чтобы версию обновлял Dependabot
-FROM composer:2.10.3 AS composer
+FROM composer:2.11.0 AS composer
 
 FROM php:${PHP_VERSION}-fpm-alpine
 
